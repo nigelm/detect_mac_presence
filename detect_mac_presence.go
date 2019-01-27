@@ -19,26 +19,26 @@ import (
 	"github.com/dchest/safefile"
 )
 
-type Person struct {
+type personState struct {
 	Name    string `json:"name"`
 	MacAddr string `json:"macaddr"`
-	AppId   string `json:"appid"`
+	AppID   string `json:"appid"`
 	Token   string `json:"token"`
 	Changed bool   `json:"changed"`
 	Checked bool   `json:"checked"`
 	AtHome  bool   `json:"athome"`
 }
 
-type SystemState struct {
-	BaseURL string   `json:"baseurl"`
-	Changed bool     `json:"changed"`
-	People  []Person `json:"people"`
+type systemState struct {
+	BaseURL string        `json:"baseurl"`
+	Changed bool          `json:"changed"`
+	People  []personState `json:"people"`
 }
 
-func BuildSystemState(filename string, baseURL string) SystemState {
+func buildSystemState(filename string, baseURL string) systemState {
 	csvFile, _ := os.Open(filename)
 	reader := csv.NewReader(bufio.NewReader(csvFile))
-	var people []Person
+	var people []personState
 	for {
 		line, error := reader.Read()
 		if error == io.EOF {
@@ -46,14 +46,14 @@ func BuildSystemState(filename string, baseURL string) SystemState {
 		} else if error != nil {
 			log.Fatal(error)
 		}
-		people = append(people, Person{
+		people = append(people, personState{
 			Name:    line[0],
 			MacAddr: line[1],
-			AppId:   line[2],
+			AppID:   line[2],
 			Token:   line[3],
 		})
 	}
-	state := SystemState{
+	state := systemState{
 		BaseURL: baseURL,
 		Changed: true, // because loading file changes state
 		People:  people,
@@ -61,7 +61,7 @@ func BuildSystemState(filename string, baseURL string) SystemState {
 	return state
 }
 
-func ResetPeopleState(state SystemState) {
+func resetPeopleState(state systemState) {
 	for i := 0; i < len(state.People); i++ {
 		person := &state.People[i]
 		person.Checked = false
@@ -69,7 +69,7 @@ func ResetPeopleState(state SystemState) {
 	}
 }
 
-func LookForPeople(state SystemState) SystemState {
+func lookForPeople(state systemState) systemState {
 	// run arp command
 	cmd := exec.Command("arp", "-an")
 	cmdReader, err := cmd.StdoutPipe()
@@ -128,17 +128,17 @@ func LookForPeople(state SystemState) SystemState {
 	return state
 }
 
-func WriteState(filename string, state SystemState) {
-	stateJson, _ := json.Marshal(state)
+func writeState(filename string, state systemState) {
+	stateJSON, _ := json.Marshal(state)
 	fmt.Fprintln(os.Stderr, "Writing state file ", filename)
-	err := safefile.WriteFile(filename, []byte(string(stateJson)), 0600)
+	err := safefile.WriteFile(filename, []byte(string(stateJSON)), 0600)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error writing state file", err)
 		os.Exit(1)
 	}
 }
 
-func ReadState(filename string) SystemState {
+func readState(filename string) systemState {
 	// Open our jsonFile
 	jsonFile, err := os.Open(filename)
 	if err != nil {
@@ -150,7 +150,7 @@ func ReadState(filename string) SystemState {
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
 	// we initialize our Users array
-	var state SystemState
+	var state systemState
 
 	// we unmarshal our byteArray which contains our
 	// jsonFile's content into 'users' which we defined above
@@ -163,7 +163,7 @@ func ReadState(filename string) SystemState {
 	return state
 }
 
-func updateSmartThingsState(state SystemState, force bool) {
+func updateSmartThingsState(state systemState, force bool) {
 	if state.Changed || force {
 		for i := 0; i < len(state.People); i++ {
 			person := state.People[i]
@@ -171,7 +171,7 @@ func updateSmartThingsState(state SystemState, force bool) {
 			if person.AtHome {
 				personState = "home"
 			}
-			notificationURL := fmt.Sprintf("%s/api/smartapps/installations/%s/Phone/%s?access_token=%s", state.BaseURL, person.AppId, personState, person.Token)
+			notificationURL := fmt.Sprintf("%s/api/smartapps/installations/%s/Phone/%s?access_token=%s", state.BaseURL, person.AppID, personState, person.Token)
 			res, err := http.Get(notificationURL)
 			if err != nil {
 				log.Fatal(err)
@@ -197,16 +197,16 @@ func main() {
 	forcePtr := flag.Bool("force", false, "Force SmartThings state update")
 	flag.Parse()
 
-	var state SystemState
+	var state systemState
 	if len(*loadFilePtr) > 0 {
-		state = BuildSystemState(*loadFilePtr, *baseURLPtr)
+		state = buildSystemState(*loadFilePtr, *baseURLPtr)
 	} else {
-		state = ReadState(*stateFilePtr)
+		state = readState(*stateFilePtr)
 	}
-	ResetPeopleState(state)
-	state = LookForPeople(state)
+	resetPeopleState(state)
+	state = lookForPeople(state)
 	updateSmartThingsState(state, *forcePtr)
 	if state.Changed {
-		WriteState(*stateFilePtr, state)
+		writeState(*stateFilePtr, state)
 	}
 }
