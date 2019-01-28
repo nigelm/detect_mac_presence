@@ -167,21 +167,23 @@ func updateSmartThingsState(state systemState, force bool) {
 	if state.Changed || force {
 		for i := 0; i < len(state.People); i++ {
 			person := state.People[i]
-			personState := "away"
-			if person.AtHome {
-				personState = "home"
+			if person.Changed || force {
+				personState := "away"
+				if person.AtHome {
+					personState = "home"
+				}
+				notificationURL := fmt.Sprintf("%s/api/smartapps/installations/%s/Phone/%s?access_token=%s", state.BaseURL, person.AppID, personState, person.Token)
+				res, err := http.Get(notificationURL)
+				if err != nil {
+					log.Fatal(err)
+				}
+				response, err := ioutil.ReadAll(res.Body)
+				res.Body.Close()
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Printf("%s", response)
 			}
-			notificationURL := fmt.Sprintf("%s/api/smartapps/installations/%s/Phone/%s?access_token=%s", state.BaseURL, person.AppID, personState, person.Token)
-			res, err := http.Get(notificationURL)
-			if err != nil {
-				log.Fatal(err)
-			}
-			response, err := ioutil.ReadAll(res.Body)
-			res.Body.Close()
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Printf("%s", response)
 		}
 	}
 }
