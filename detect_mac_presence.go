@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	syslog "github.com/RackSec/srslog"
 	"github.com/dchest/safefile"
 )
 
@@ -165,6 +166,7 @@ func readState(filename string) systemState {
 
 func updateSmartThingsState(state systemState, force bool) {
 	if state.Changed || force {
+		w, _ := syslog.Dial("", "", (syslog.LOG_INFO | syslog.LOG_LOCAL7), "detect_mac_presence")
 		for i := 0; i < len(state.People); i++ {
 			person := state.People[i]
 			if person.Changed || force {
@@ -183,6 +185,7 @@ func updateSmartThingsState(state systemState, force bool) {
 					log.Fatal(err)
 				}
 				fmt.Printf("%s", response)
+				w.Info(fmt.Sprintf("%s is now %s", person.Name, personState))
 			}
 		}
 	}
